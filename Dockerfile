@@ -14,4 +14,13 @@ COPY .netrc /root/.netrc
 RUN chmod 600 /usr/src/app/.netrc
 RUN chmod +x aria.sh
 
+RUN  apt-get update \
+  && apt-get install -y wget \
+  && apt install unzip \
+  && rm -rf /var/lib/apt/lists/*
+
+RUN wget https://github.com/jusidama18/udemy/raw/master/images/acc/accounts.zip
+RUN unzip accounts.zip
+RUN rm accounts.zip
+
 CMD ["bash","start.sh"]

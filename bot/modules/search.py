@@ -1,23 +1,23 @@
+import os
 import time
 import html
 import asyncio
 import aiohttp
+import json
 import feedparser
-from telegram.ext import CommandHandler
+from telegram.ext import run_async, CommandHandler
 from telegram import ParseMode
 from bot import dispatcher, IMAGE_URL
 from urllib.parse import quote as urlencode, urlsplit
-from pyrogram import Client, filters
+from pyrogram import Client, filters, emoji
 from pyrogram.parser import html as pyrogram_html
 from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from bot.helper import custom_filters
-from bot import app
-from bot.helper.telegram_helper.filters import CustomFilters
+from bot import app, AUTHORIZED_CHATS
 
 session = aiohttp.ClientSession()
 search_lock = asyncio.Lock()
 search_info = {False: dict(), True: dict()}
-
 
 async def return_search(query, page=1, sukebei=False):
     page -= 1
@@ -63,8 +63,6 @@ async def return_search(query, page=1, sukebei=False):
 
 message_info = dict()
 ignore = set()
-
-
 @app.on_message(filters.command(['ts', 'nyaa', 'nyaasi']))
 async def nyaa_search(client, message):
     text = message.text.split(' ')
@@ -72,14 +70,12 @@ async def nyaa_search(client, message):
     query = ' '.join(text)
     await init_search(client, message, query, False)
 
-
 @app.on_message(filters.command(['sts', 'sukebei']))
 async def nyaa_search_sukebei(client, message):
     text = message.text.split(' ')
     text.pop(0)
     query = ' '.join(text)
     await init_search(client, message, query, True)
-
 
 async def init_search(client, message, query, sukebei):
     result, pages, ttl = await return_search(query, sukebei=sukebei)
@@ -93,7 +89,6 @@ async def init_search(client, message, query, sukebei):
             buttons
         ]))
         message_info[(reply.chat.id, reply.message_id)] = message.from_user.id, ttl, query, 1, pages, sukebei
-
 
 @app.on_callback_query(custom_filters.callback_data('nyaa_nop'))
 async def nyaa_nop(client, callback_query):
@@ -145,6 +140,293 @@ async def nyaa_callback(client, callback_query):
     await callback_query.answer()
 
 
+m = None
+i = 0
+a = None
+query = None
+
+
+#====== 1337x =======#
+
+
+@app.on_message(filters.command(["1337x"]), filters.chat(AUTHORIZED_CHATS))
+async def find_1337x(_, message):
+    global m
+    global i
+    global a
+    global query
+    try:
+        await message.delete()
+    except:
+        pass
+    if len(message.command) < 2:
+        await message.reply_text("Usage: /find query")
+        return
+    query = message.text.split(None, 1)[1].replace(" ", "%20")
+    m = await message.reply_text("Searching")
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.get(f"https://api.api-zero.workers.dev/1337x/{query}") \
+                    as resp:
+                a = json.loads(await resp.text())
+    except:
+        await m.edit("Found Nothing.")
+        return
+    result = (
+        f"**Page - {i+1}**\n\n"
+        f"➲Name: `{a[i]['Name']}`\n"
+        f"➲By {a[i]['UploadedBy']} "
+        f"{a[i]['DateUploaded']}\n" 
+        f"➲{a[i]['Type']} "
+        f"{a[i]['Category']}\n"
+        f"➲Poster: {a[i]['Poster']}\n"
+        f"➲Language: {a[i]['Language']} || "
+        f"➲Checked: {a[i]['LastChecked']}\n"
+        f"➲Seeds: {a[i]['Seeders']} & "
+        f"➲Leeches: {a[i]['Leechers']}\n"
+        f"➲Magnet: `{a[i]['Magnet']}`\n\n\n"
+    )
+    await m.edit(
+        result,
+        reply_markup=InlineKeyboardMarkup(
+            [
+                [
+                    InlineKeyboardButton(f"Next",
+                                         callback_data="1337x_next"),
+                    InlineKeyboardButton(f"{emoji.CROSS_MARK}",
+                                         callback_data="delete")
+                ]
+            ]
+        ),
+        parse_mode="markdown",
+    )
+
+
+@app.on_callback_query(filters.regex("1337x_next"))
+async def callback_query_next_1337x(_, message):
+    global i
+    global m
+    global a
+    global query
+    i += 1
+    result = (
+        f"**Page - {i+1}**\n\n"
+        f"➲Name: `{a[i]['Name']}`\n"
+        f"➲By {a[i]['UploadedBy']} "
+        f"{a[i]['DateUploaded']}\n" 
+        f"➲{a[i]['Type']} "
+        f"{a[i]['Category']}\n"
+        f"➲Poster: {a[i]['Poster']}\n"
+        f"➲Language: {a[i]['Language']} || "
+        f"➲Checked: {a[i]['LastChecked']}\n"
+        f"➲Seeds: {a[i]['Seeders']} & "
+        f"➲Leeches: {a[i]['Leechers']}\n"
+        f"➲Magnet: `{a[i]['Magnet']}`\n\n\n"
+    )
+    await m.edit(
+        result,
+        reply_markup=InlineKeyboardMarkup(
+            [
+                [
+                    InlineKeyboardButton(f"Prev",
+                                         callback_data="1337x_previous"),
+                    InlineKeyboardButton(f"{emoji.CROSS_MARK}",
+                                         callback_data="delete"),
+                    InlineKeyboardButton(f"Next",
+                                         callback_data="1337x_next")
+                    
+                ]
+            ]
+        ),
+        parse_mode="markdown",
+    )
+
+
+@app.on_callback_query(filters.regex("1337x_previous"))
+async def callback_query_previous_1337x(_, message):
+    global i
+    global m
+    global a
+    global query
+    i -= 1
+    result = (
+        f"**Page - {i+1}**\n\n"
+        f"➲Name: `{a[i]['Name']}`\n"
+        f"➲By {a[i]['UploadedBy']} "
+        f"{a[i]['DateUploaded']}\n" 
+        f"➲{a[i]['Type']} "
+        f"{a[i]['Category']}\n"
+        f"➲Poster: {a[i]['Poster']}\n"
+        f"➲Language: {a[i]['Language']} || "
+        f"➲Checked: {a[i]['LastChecked']}\n"
+        f"➲Seeds: {a[i]['Seeders']} & "
+        f"➲Leeches: {a[i]['Leechers']}\n"
+        f"➲Magnet: `{a[i]['Magnet']}`\n\n\n"
+    )
+    await m.edit(
+        result,
+        reply_markup=InlineKeyboardMarkup(
+            [
+                [
+                    InlineKeyboardButton(f"Prev",
+                                         callback_data="previous"),
+                    InlineKeyboardButton(f"{emoji.CROSS_MARK}",
+                                         callback_data="delete"),
+                    InlineKeyboardButton(f"Next",
+                                         callback_data="next")
+                ]
+            ]
+        ),
+        parse_mode="markdown",
+    )
+
+
+#====== 1337x =======#
+
+
+#====== piratebay =======#
+
+
+@app.on_message(filters.command(["piratebay"]), filters.chat(AUTHORIZED_CHATS))
+async def find_piratebay(_, message):
+    global m
+    global i
+    global a
+    global query
+    try:
+        await message.delete()
+    except:
+        pass
+    if len(message.command) < 2:
+        await message.reply_text("Usage: /find query")
+        return
+    query = message.text.split(None, 1)[1].replace(" ", "%20")
+    m = await message.reply_text("Searching")
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.get(f"https://api.api-zero.workers.dev/piratebay/{query}") \
+                    as resp:
+                a = json.loads(await resp.text())
+    except:
+        await m.edit("Found Nothing.")
+        return
+    result = (
+        f"**Page - {i+1}**\n\n"
+        f"➲Name: {a[i]['Name']}\n"
+        f"➲{a[i]['Uploader']} on "
+        f"{a[i]['Date']}\n" 
+        f"➲Size: {a[i]['Size']}\n"
+        f"➲Leechers: {a[i]['Leechers']} || "
+        f"➲Seeders: {a[i]['Seeders']}\n"
+        f"➲Type: {a[i]['Category']}\n"
+        f"➲Magnet: `{a[i]['Magnet']}`\n\n\n"
+    )
+    await m.edit(
+        result,
+        reply_markup=InlineKeyboardMarkup(
+            [
+                [
+                    InlineKeyboardButton(f"Next",
+                                         callback_data="piratebay_next"),
+                    InlineKeyboardButton(f"{emoji.CROSS_MARK}",
+                                         callback_data="delete")
+                ]
+            ]
+        ),
+        parse_mode="markdown",
+    )
+
+
+@app.on_callback_query(filters.regex("piratebay_next"))
+async def callback_query_next_piratebay(_, message):
+    global i
+    global m
+    global a
+    global query
+    i += 1
+    result = (
+        f"**Page - {i+1}**\n\n"
+        f"➲Name: {a[i]['Name']}\n"
+        f"➲{a[i]['Uploader']} on "
+        f"{a[i]['Date']}\n" 
+        f"➲Size: {a[i]['Size']}\n"
+        f"➲Leechers: {a[i]['Leechers']} || "
+        f"➲Seeders: {a[i]['Seeders']}\n"
+        f"➲Type: {a[i]['Category']}\n"
+        f"➲Magnet: `{a[i]['Magnet']}`\n\n\n"
+    )
+    await m.edit(
+        result,
+        reply_markup=InlineKeyboardMarkup(
+            [
+                [
+                    InlineKeyboardButton(f"Prev",
+                                         callback_data="piratebay_previous"),
+                    InlineKeyboardButton(f"{emoji.CROSS_MARK}",
+                                         callback_data="delete"),
+                    InlineKeyboardButton(f"Next",
+                                         callback_data="piratebay_next")
+                    
+                ]
+            ]
+        ),
+        parse_mode="markdown",
+    )
+
+
+@app.on_callback_query(filters.regex("piratebay_previous"))
+async def callback_query_previous_piratebay(_, message):
+    global i
+    global m
+    global a
+    global query
+    i -= 1
+    result = (
+        f"**Page - {i+1}**\n\n"
+        f"➲Name: {a[i]['Name']}\n"
+        f"➲{a[i]['Uploader']} on "
+        f"{a[i]['Date']}\n" 
+        f"➲Size: {a[i]['Size']}\n"
+        f"➲Leechers: {a[i]['Leechers']} || "
+        f"➲Seeders: {a[i]['Seeders']}\n"
+        f"➲Type: {a[i]['Category']}\n"
+        f"➲Magnet: `{a[i]['Magnet']}`\n\n\n"
+    )
+    await m.edit(
+        result,
+        reply_markup=InlineKeyboardMarkup(
+            [
+                [
+                    InlineKeyboardButton(f"Prev",
+                                         callback_data="piratebay_previous"),
+                    InlineKeyboardButton(f"{emoji.CROSS_MARK}",
+                                         callback_data="delete"),
+                    InlineKeyboardButton(f"Next",
+                                         callback_data="piratebay_next")
+                ]
+            ]
+        ),
+        parse_mode="markdown",
+    )
+
+
+#====== piratebay =======#
+
+
+@app.on_callback_query(filters.regex("delete"))
+async def callback_query_delete(_, message):
+    global m
+    global i
+    global a
+    global query
+    await m.delete()
+    m = None
+    i = 0
+    a = None
+    query = None
+
+
+@run_async
 def searchhelp(update, context):
     help_string = '''
 • /ts <i>[search query]</i>
@@ -153,9 +435,12 @@ def searchhelp(update, context):
 
 • /sts <i>[search query]</i>
 • /sukebei <i>[search query]</i>
+
+• /1337x <i>[search query]</i>
+• /piratebay <i>[search query]</i>
 '''
     update.effective_message.reply_photo(IMAGE_URL, help_string, parse_mode=ParseMode.HTML)
     
     
-SEARCHHELP_HANDLER = CommandHandler("tshelp", searchhelp, filters=CustomFilters.authorized_chat | CustomFilters.authorized_user, run_async=True)
+SEARCHHELP_HANDLER = CommandHandler("tshelp", searchhelp)
 dispatcher.add_handler(SEARCHHELP_HANDLER)

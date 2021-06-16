@@ -5,7 +5,7 @@ import asyncio
 import aiohttp
 import json
 import feedparser
-from telegram.ext import run_async, CommandHandler
+from telegram.ext import CommandHandler
 from telegram import ParseMode
 from bot import dispatcher, IMAGE_URL
 from urllib.parse import quote as urlencode, urlsplit
@@ -14,6 +14,7 @@ from pyrogram.parser import html as pyrogram_html
 from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from bot.helper import custom_filters
 from bot import app, AUTHORIZED_CHATS
+from bot.helper.telegram_helper.filters import CustomFilters
 
 session = aiohttp.ClientSession()
 search_lock = asyncio.Lock()
@@ -63,7 +64,7 @@ async def return_search(query, page=1, sukebei=False):
 
 message_info = dict()
 ignore = set()
-@app.on_message(filters.command(['ts', 'nyaa', 'nyaasi']))
+@app.on_message(filters.command(['ts', 'nyaa', 'nyaasi']) & filters.chat(AUTHORIZED_CHATS))
 async def nyaa_search(client, message):
     text = message.text.split(' ')
     text.pop(0)
@@ -149,7 +150,7 @@ query = None
 #====== 1337x =======#
 
 
-@app.on_message(filters.command(["1337x"]), filters.chat(AUTHORIZED_CHATS))
+@app.on_message(filters.command(["1337x"]) & filters.chat(AUTHORIZED_CHATS))
 async def find_1337x(_, message):
     global m
     global i
@@ -287,7 +288,7 @@ async def callback_query_previous_1337x(_, message):
 #====== piratebay =======#
 
 
-@app.on_message(filters.command(["piratebay"]), filters.chat(AUTHORIZED_CHATS))
+@app.on_message(filters.command(["piratebay"]) & filters.chat(AUTHORIZED_CHATS))
 async def find_piratebay(_, message):
     global m
     global i
@@ -442,5 +443,5 @@ def searchhelp(update, context):
     update.effective_message.reply_photo(IMAGE_URL, help_string, parse_mode=ParseMode.HTML)
     
     
-SEARCHHELP_HANDLER = CommandHandler("tshelp", searchhelp)
+SEARCHHELP_HANDLER = CommandHandler("tshelp", searchhelp, filters=(CustomFilters.authorized_chat | CustomFilters.authorized_user) & CustomFilters.mirror_owner_filter))
 dispatcher.add_handler(SEARCHHELP_HANDLER)
